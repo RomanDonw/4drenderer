@@ -34,14 +34,14 @@ int main(void)
         int size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        char *buff = malloc(size + 1);
+        GLchar *buff = malloc(size + 1);
         if (!buff) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
-        fread(buff, size, 1, f);
+        if (fread(buff, size, 1, f) < 1) { puts("error reading vertex shader source"); return 1; }
         fclose(f);
         buff[size] = '\0';
 
         GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vs, 1, (void *)&buff, &size);
+        glShaderSource(vs, 1, &buff, NULL);
         glCompileShader(vs);
         free(buff);
         if (!isshadercompilationsuccessful(vs))
@@ -69,12 +69,12 @@ int main(void)
         fseek(f, 0, SEEK_SET);
         
         if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
-        fread(buff, size, 1, f);
+        if (fread(buff, size, 1, f) < 1) { puts("error reading fragment shader source"); return 1; }
         fclose(f);
         buff[size] = '\0';
 
         GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fs, 1, (void *)&buff, &size);
+        glShaderSource(fs, 1, &buff, NULL);
         glCompileShader(fs);
         free(buff);
         if (!isshadercompilationsuccessful(fs)) goto errorquit_afterinitglfw;
@@ -117,7 +117,7 @@ int main(void)
 
     // ===========================================
 
-    GLint u_model = glGetUniformLocation(prog, "model[0]");
+    GLint u_model = glGetUniformLocation(prog, "model");
     printf("%i\n", u_model);
 
     mat5f model, tmp;
