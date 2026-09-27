@@ -1,0 +1,6 @@
+/build/*
+!/build/
+!/build/res
+
+*.code-workspace
+/.vscode
