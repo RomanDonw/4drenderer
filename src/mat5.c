@@ -93,3 +93,17 @@ ROTFUNC(mat5f_rotatezx, 0, 12, 2, 10, 6, 18)
 ROTFUNC(mat5f_rotatexw, 0, 18, 15, 3, 6, 12)
 ROTFUNC(mat5f_rotateyw, 6, 18, 16, 8, 0, 12)
 ROTFUNC(mat5f_rotatezw, 12, 18, 17, 13, 0, 6)
+
+void mat5f_lookat(mat5f out, const vec4f pos, const vec4f front, const vec4f right, const vec4f up, const vec4f over)
+{
+    out[20] = out[21] = out[22] = out[23] = 0;
+    out[24] = 1;
+    vec4f_copy((void *)out, right);
+    vec4f_copy((void *)(&out[5]), up);
+    vec4f_copy((void *)(&out[10]), front);
+    vec4f_copy((void *)(&out[15]), over);
+    out[4] = -vec4f_dot(pos, right);
+    out[9] = -vec4f_dot(pos, up);
+    out[14] = -vec4f_dot(pos, front);
+    out[19] = -vec4f_dot(pos, over);
+}

@@ -1,8 +1,9 @@
 #ifndef MAT5_H
 #define MAT5_H
 
+#include "vec4.h"
+
 typedef float mat5f[25];
-typedef float vec4f[4];
 typedef float vec5f[5];
 
 void mat5f_zero(mat5f out);
