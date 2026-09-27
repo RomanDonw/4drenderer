@@ -63,6 +63,13 @@ void mat5f_mulv(vec5f out, const mat5f mat, const vec5f vec)
     MULV(4, 20, 21, 22, 23, 24)
 }
 
+void mat5f_mulv2(vec5f out, const mat5f mat)
+{
+    vec5f v;
+    mat5f_mulv(v, mat, out);
+    memcpy(out, v, sizeof(v));
+}
+
 void mat5f_mulm2(mat5f out, const mat5f in)
 {
     mat5f ret;

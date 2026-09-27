@@ -4,8 +4,11 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include "mat5.h"
+
 static void onresize(GLFWwindow *window, int width, int height)
 { glViewport(0, 0, width > 0 ? width : 1, height > 0 ? height : 1); }
+static bool isshadercompilationsuccessful(GLuint shader);
 
 int main(void)
 {
@@ -31,15 +34,30 @@ int main(void)
         int size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        char *buff = malloc(size);
+        char *buff = malloc(size + 1);
         if (!buff) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
         fread(buff, size, 1, f);
         fclose(f);
+        buff[size] = '\0';
 
         GLuint vs = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vs, 1, (void *)&buff, &size);
-        free(buff);
         glCompileShader(vs);
+        free(buff);
+        if (!isshadercompilationsuccessful(vs))
+        {
+            int len;
+            glGetShaderiv(vs, GL_INFO_LOG_LENGTH, &len);
+            
+            if (len > 0)
+            {
+                char *buff = malloc(len);
+                if (!buff) { puts("memory allocation failed"); return 1; }
+                glGetShaderInfoLog(vs, len, NULL, buff);
+                printf("#### VERTEX SHADER ####\n%s", buff);
+            }
+            goto errorquit_afterinitglfw;
+        }
         glAttachShader(prog, vs);
 
         // ===========================================
@@ -50,19 +68,25 @@ int main(void)
         size = ftell(f);
         fseek(f, 0, SEEK_SET);
         
-        if (!(buff = malloc(size))) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
+        if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
         fread(buff, size, 1, f);
         fclose(f);
+        buff[size] = '\0';
 
         GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(fs, 1, (void *)&buff, &size);
-        free(buff);
         glCompileShader(fs);
+        free(buff);
+        if (!isshadercompilationsuccessful(fs)) goto errorquit_afterinitglfw;
         glAttachShader(prog, fs);
 
         // ===========================================
 
         glLinkProgram(prog);
+        GLint result;
+        glGetProgramiv(prog, GL_LINK_STATUS, &result);
+        if (!result) goto errorquit_afterinitglfw;
+
         glUseProgram(prog);
     }
 
@@ -91,6 +115,21 @@ int main(void)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
+    // ===========================================
+
+    GLint u_model = glGetUniformLocation(prog, "model[0]");
+    printf("%i\n", u_model);
+
+    mat5f model, tmp;
+    vec4f pos = {0, 0, -20, 0}, scale = {1, 1, 1, 1};
+    //mat5f_translate(model, pos);
+    //mat5f_scale(tmp, scale);
+    //mat5f_mulm2(model, tmp);
+    mat5f_idt(model);
+    glUniform1fv(u_model, 25, model);
+
+    // ===========================================
+
     glClearColor(0, 0, 0, 1);
     while (!glfwWindowShouldClose(w))
     {
@@ -108,4 +147,11 @@ int main(void)
     errorquit_afterinitglfw:
         glfwTerminate();
     return 1;
+}
+
+static bool isshadercompilationsuccessful(GLuint shader)
+{
+    GLint result;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
+    return result;
 }

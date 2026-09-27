@@ -25,6 +25,6 @@ void mat5f_mulm(mat5f out, const mat5f a, const mat5f b);
 void mat5f_mulm2(mat5f out, const mat5f in); // out = out * in
 void mat5f_mulm2r(mat5f out, const mat5f in); // out = in * out
 void mat5f_mulv(vec5f out, const mat5f mat, const vec5f vec);
-
+void mat5f_mulv2(vec5f out, const mat5f mat);
 
 #endif
