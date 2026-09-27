@@ -1,6 +1,7 @@
 #include "mat5.h"
 
 #include <string.h>
+#include <math.h>
 
 void mat5f_zero(mat5f out) { memset(out, 0, sizeof(mat5f)); }
 
@@ -75,3 +76,20 @@ void mat5f_mulm2r(mat5f out, const mat5f in)
     mat5f_mulm(ret, in, out);
     mat5f_copy(out, ret);
 }
+
+#define ROTFUNC(functionname, cos1idx, cos2idx, possinidx, negsinidx, first1idx, second1idx) \
+    void functionname(mat5f out, float angle) \
+    {\
+        mat5f_zero(out);\
+        out[cos1idx] = out[cos2idx] = cosf(angle);\
+        out[negsinidx] = -(out[possinidx] = sinf(angle));\
+        out[first1idx] = out[second1idx] = out[24] = 1;\
+    }
+
+ROTFUNC(mat5f_rotatexy, 0, 6, 5, 1, 12, 18)
+ROTFUNC(mat5f_rotateyz, 6, 12, 11, 7, 0, 18)
+ROTFUNC(mat5f_rotatezx, 0, 12, 2, 10, 6, 18)
+
+ROTFUNC(mat5f_rotatexw, 0, 18, 15, 3, 6, 12)
+ROTFUNC(mat5f_rotateyw, 6, 18, 16, 8, 0, 12)
+ROTFUNC(mat5f_rotatezw, 12, 18, 17, 13, 0, 6)
