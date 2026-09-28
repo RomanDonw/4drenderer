@@ -27,4 +27,8 @@ void mat5f_mulm2r(mat5f out, const mat5f in); // out = in * out
 void mat5f_mulv(vec5f out, const mat5f mat, const vec5f vec);
 void mat5f_mulv2(vec5f out, const mat5f mat);
 
+void mat5f_lookat(mat5f out, const vec4f pos, const vec4f front, const vec4f right, const vec4f up, const vec4f over);
+
+void mat5f_print(const mat5f in);
+
 #endif

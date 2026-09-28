@@ -3,12 +3,24 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <math.h>
 
+#include "mat4.h"
 #include "mat5.h"
 
+#define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
+
+unsigned int winwidth, winheight;
 static void onresize(GLFWwindow *window, int width, int height)
-{ glViewport(0, 0, width > 0 ? width : 1, height > 0 ? height : 1); }
+{
+    winwidth = width > 0 ? width : 1;
+    winheight = height > 0 ? height : 1;
+    glViewport(0, 0, winwidth, winheight);
+}
+
 static bool isshadercompilationsuccessful(GLuint shader);
+
+#define PI4 0.78539816339744830962
 
 int main(void)
 {
@@ -34,14 +46,14 @@ int main(void)
         int size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        GLchar *buff = malloc(size + 1);
+        char *buff = malloc(size + 1);
         if (!buff) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
         if (fread(buff, size, 1, f) < 1) { puts("error reading vertex shader source"); return 1; }
         fclose(f);
         buff[size] = '\0';
 
         GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vs, 1, &buff, NULL);
+        glShaderSource(vs, 1, (void *)&buff, NULL);
         glCompileShader(vs);
         free(buff);
         if (!isshadercompilationsuccessful(vs))
@@ -74,7 +86,7 @@ int main(void)
         buff[size] = '\0';
 
         GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fs, 1, &buff, NULL);
+        glShaderSource(fs, 1, (void *)&buff, NULL);
         glCompileShader(fs);
         free(buff);
         if (!isshadercompilationsuccessful(fs)) goto errorquit_afterinitglfw;
@@ -96,13 +108,28 @@ int main(void)
 
     static const float vertices[] =
     {
-        -0.5, -0.5, 0, 1,
-        0, 0.5, 0, 1,
-        0.5, -0.5, 0, 1
+        0.5, -0.5, 2.5, 0,
+        0, 0.5, 2.5, 0,
+        -0.5, -0.5, 2.5, 0,
+        
+        0.5, -0.5, -2.5, 5,
+        0, 0.5, -2.5, 5,
+        -0.5, -0.5, -2.5, 5,
     };
-    static const int indices[] =
+    static const unsigned int indices[] =
     {
-        0, 1, 2
+        
+        0, 1, 2,
+        3, 4, 5,
+
+        3, 4, 0,
+        4, 1, 0,
+
+        2, 5, 4,
+        4, 1, 2,
+
+        0, 2, 5,
+        5, 3, 0
     };
 
     glGenBuffers(1, &VBO);
@@ -117,29 +144,90 @@ int main(void)
 
     // ===========================================
 
-    GLint u_model = glGetUniformLocation(prog, "color");
+    GLint u_model = glGetUniformLocation(prog, "model");
     printf("%i\n", u_model);
 
     mat5f model, tmp;
-    vec4f pos = {0, 0, -20, 0}, scale = {1, 1, 1, 1};
-    //mat5f_translate(model, pos);
-    //mat5f_scale(tmp, scale);
-    //mat5f_mulm2(model, tmp);
-    mat5f_idt(model);
-    glUniform1fv(u_model, 25, model);
+    vec4f pos = {1, 2, -3, 0}, scale = {1, 1, 1, 1};
+    float rot[6] = {0};
 
+    GLint u_perp = glGetUniformLocation(prog, "perp");
+    mat4f perp;
+    printf("%i\n", u_perp);
+
+    GLint u_camw = glGetUniformLocation(prog, "camw");
+    float camw = 0;
+    
     // ===========================================
 
+    glDisable(GL_CULL_FACE);
+    //glCullFace(GL_BACK);
+
     glClearColor(0, 0, 0, 1);
+    double lasttime = glfwGetTime();
     while (!glfwWindowShouldClose(w))
     {
+        double currtime = glfwGetTime();
+        double delta = currtime - lasttime;
+        lasttime = currtime;
+
+        // ===========================================
+        
         glfwPollEvents();
         if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) pos[2] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) pos[2] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) pos[0] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) pos[0] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) pos[1] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) pos[1] += 1 * delta;
+        
+        if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) camw -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) camw += 1 * delta;
+
+        char sign = glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? -1 : 1;
+        if (glfwGetKey(w, GLFW_KEY_R) == GLFW_PRESS) rot[0] += sign * delta;
+        if (glfwGetKey(w, GLFW_KEY_T) == GLFW_PRESS) rot[1] += sign * delta;
+        if (glfwGetKey(w, GLFW_KEY_Y) == GLFW_PRESS) rot[2] += sign * delta;
+        if (glfwGetKey(w, GLFW_KEY_F) == GLFW_PRESS) rot[3] += sign * delta;
+        if (glfwGetKey(w, GLFW_KEY_G) == GLFW_PRESS) rot[4] += sign * delta;
+        if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) rot[5] += sign * delta;
+
+        // ===========================================
+        
+        mat4f_perspective(perp, PI4, (float)winwidth / winheight, 0.1, 1000);
+        glUniformMatrix4fv(u_perp, 1, GL_FALSE, perp);
+
+        // ===========================================
+
+        mat5f_translate(model, pos);
+
+        mat5f_rotatexy(tmp, rot[0]);
+        mat5f_mulm2(model, tmp);
+        mat5f_rotateyz(tmp, rot[1]);
+        mat5f_mulm2(model, tmp);
+        mat5f_rotatezx(tmp, rot[2]);
+        mat5f_mulm2(model, tmp);
+
+        mat5f_rotatexw(tmp, rot[3]);
+        mat5f_mulm2(model, tmp);
+        mat5f_rotateyw(tmp, rot[4]);
+        mat5f_mulm2(model, tmp);
+        mat5f_rotatezw(tmp, rot[5]);
+        mat5f_mulm2(model, tmp);
+
+        mat5f_scale(tmp, scale);
+        mat5f_mulm2(model, tmp);
+        glUniform1fv(u_model, 25, model);
+
+        // ===========================================
+
+        glUniform1f(u_camw, camw);
+
+        // ===========================================
 
         glClear(GL_COLOR_BUFFER_BIT);
-
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-
+        glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_INT, NULL);
         glfwSwapBuffers(w);
     }
 

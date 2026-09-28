@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 
 void mat5f_zero(mat5f out) { memset(out, 0, sizeof(mat5f)); }
 
@@ -113,4 +114,12 @@ void mat5f_lookat(mat5f out, const vec4f pos, const vec4f front, const vec4f rig
     out[9] = -vec4f_dot(pos, up);
     out[14] = -vec4f_dot(pos, front);
     out[19] = -vec4f_dot(pos, over);
+}
+
+void mat5f_print(const mat5f in)
+{
+    for (unsigned char i = 0; i < 5; i++)
+    {
+        printf("%10f%10f%10f%10f%10f\n", in[5 * i], in[5 * i + 1], in[5 * i + 2], in[5 * i + 3], in[5 * i + 4]);
+    }
 }
