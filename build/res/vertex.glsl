@@ -2,6 +2,7 @@
 
 layout (location = 0) in vec4 pos4;
 
+uniform vec4 color;
 uniform float model[25];
 
 void vec5f_fromvec4(float outv[5], vec4 inv);

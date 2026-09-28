@@ -117,7 +117,7 @@ int main(void)
 
     // ===========================================
 
-    GLint u_model = glGetUniformLocation(prog, "model");
+    GLint u_model = glGetUniformLocation(prog, "color");
     printf("%i\n", u_model);
 
     mat5f model, tmp;
