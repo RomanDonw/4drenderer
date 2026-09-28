@@ -3,25 +3,29 @@
 layout (location = 0) in vec4 pos4;
 
 uniform vec4 color;
-uniform float model[25];
 uniform mat4 perp;
+uniform float view[25];
+uniform float model[25];
 
 void vec5f_fromvec4(out float outv[5], vec4 inv);
 void mat5f_mulm(out float outv[25], const float a[25], const float b[25]);
 void mat5f_mulv(out float outv[5], const float mat[25], const float vec[5]);
 
 out vec4 wpos;
+out vec4 vpos;
 
 void main(void)
 {
     float pos5[5];
     vec5f_fromvec4(pos5, pos4);
 
-    float pos5trans[5];
-    mat5f_mulv(pos5trans, model, pos5);
+    float wpos5[5];
+    mat5f_mulv(wpos5, model, pos5);
+    mat5f_mulv(pos5, view, wpos5);
 
-    wpos = vec4(pos5trans[0], pos5trans[1], pos5trans[2], pos5trans[3]);
-    gl_Position = perp * vec4(pos5trans[0], pos5trans[1], pos5trans[2], 1);
+    wpos = vec4(wpos5[0], wpos5[1], wpos5[2], wpos5[3]);
+    vpos = vec4(pos5[0], pos5[1], pos5[2], pos5[3]);
+    gl_Position = perp * vec4(pos5[0], pos5[1], pos5[2], 1);
 }
 
 #define MULMCOL(r, a1, a2, a3, a4, a5, b1, b2, b3, b4, b5) \

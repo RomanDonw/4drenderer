@@ -19,6 +19,7 @@ static void onresize(GLFWwindow *window, int width, int height)
 }
 
 static bool isshadercompilationsuccessful(GLuint shader);
+static void gentransform(mat5f out, const vec4f pos, const float euler[6], const vec4f scale);
 
 #define PI4 0.78539816339744830962
 
@@ -147,16 +148,18 @@ int main(void)
     GLint u_model = glGetUniformLocation(prog, "model");
     printf("%i\n", u_model);
 
-    mat5f model, tmp;
-    vec4f pos = {1, 2, -3, 0}, scale = {1, 1, 1, 1};
+    mat5f model;
+    vec4f pos = {1, 2, 0, 0}, scale = {1, 1, 1, 1};
     float rot[6] = {0};
 
     GLint u_perp = glGetUniformLocation(prog, "perp");
     mat4f perp;
     printf("%i\n", u_perp);
 
-    GLint u_camw = glGetUniformLocation(prog, "camw");
-    float camw = 0;
+    GLint u_view = glGetUniformLocation(prog, "view");
+    printf("%i\n", u_view);
+    vec4f campos = {0};
+    float camrot[6] = {0};
     
     // ===========================================
 
@@ -175,15 +178,15 @@ int main(void)
         
         glfwPollEvents();
         if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
-        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) pos[2] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) pos[2] += 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) pos[0] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) pos[0] += 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) pos[1] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) pos[1] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) campos[2] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) campos[2] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) campos[0] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) campos[0] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) campos[1] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) campos[1] += 1 * delta;
         
-        if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) camw -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) camw += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) campos[3] -= 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) campos[3] += 1 * delta;
 
         char sign = glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? -1 : 1;
         if (glfwGetKey(w, GLFW_KEY_R) == GLFW_PRESS) rot[0] += sign * delta;
@@ -199,30 +202,28 @@ int main(void)
         glUniformMatrix4fv(u_perp, 1, GL_FALSE, perp);
 
         // ===========================================
-
-        mat5f_translate(model, pos);
-
-        mat5f_rotatexy(tmp, rot[0]);
-        mat5f_mulm2(model, tmp);
-        mat5f_rotateyz(tmp, rot[1]);
-        mat5f_mulm2(model, tmp);
-        mat5f_rotatezx(tmp, rot[2]);
-        mat5f_mulm2(model, tmp);
-
-        mat5f_rotatexw(tmp, rot[3]);
-        mat5f_mulm2(model, tmp);
-        mat5f_rotateyw(tmp, rot[4]);
-        mat5f_mulm2(model, tmp);
-        mat5f_rotatezw(tmp, rot[5]);
-        mat5f_mulm2(model, tmp);
-
-        mat5f_scale(tmp, scale);
-        mat5f_mulm2(model, tmp);
+        
+        gentransform(model, pos, rot, scale);
         glUniform1fv(u_model, 25, model);
 
         // ===========================================
 
-        glUniform1f(u_camw, camw);
+        {
+            vec5f front = {0, 0, -1, 0, 1}, right = {1, 0, 0, 0, 1}, up = {0, 1, 0, 0, 1}, over = {0, 0, 0, 1, 1};
+            mat5f tmp;
+            gentransform(tmp, campos, camrot, NULL);
+            mat5f_mulv2(front, tmp);
+            mat5f_mulv2(right, tmp);
+            mat5f_mulv2(up, tmp);
+            mat5f_mulv2(over, tmp);
+            vec5f_norm2(front);
+            vec5f_norm2(right);
+            vec5f_norm2(up);
+            vec5f_norm2(over);
+            
+            mat5f_lookat(tmp, campos, front, right, up, over);
+            glUniform1fv(u_view, 25, tmp);
+        }
 
         // ===========================================
 
@@ -242,4 +243,30 @@ static bool isshadercompilationsuccessful(GLuint shader)
     GLint result;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
     return result;
+}
+
+static void gentransform(mat5f out, const vec4f pos, const float euler[6], const vec4f scale)
+{
+    mat5f tmp;
+    mat5f_translate(out, pos);
+
+    mat5f_rotatexy(tmp, euler[0]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotateyz(tmp, euler[1]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotatezx(tmp, euler[2]);
+    mat5f_mulm2(out, tmp);
+
+    mat5f_rotatexw(tmp, euler[3]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotateyw(tmp, euler[4]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotatezw(tmp, euler[5]);
+    mat5f_mulm2(out, tmp);
+
+    if (scale)
+    {
+        mat5f_scale(tmp, scale);
+        mat5f_mulm2(out, tmp);
+    }
 }
