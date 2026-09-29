@@ -216,10 +216,10 @@ int main(void)
             mat5f_mulv2(right, tmp);
             mat5f_mulv2(up, tmp);
             mat5f_mulv2(over, tmp);
-            vec5f_norm2(front);
-            vec5f_norm2(right);
-            vec5f_norm2(up);
-            vec5f_norm2(over);
+            vec4f_norm2(front);
+            vec4f_norm2(right);
+            vec4f_norm2(up);
+            vec4f_norm2(over);
             
             mat5f_lookat(tmp, campos, front, right, up, over);
             glUniform1fv(u_view, 25, tmp);

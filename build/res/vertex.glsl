@@ -21,6 +21,7 @@ void main(void)
 
     float wpos5[5];
     mat5f_mulv(wpos5, model, pos5);
+    wpos5[4] = 1;
     mat5f_mulv(pos5, view, wpos5);
 
     wpos = vec4(wpos5[0], wpos5[1], wpos5[2], wpos5[3]);
