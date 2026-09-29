@@ -184,8 +184,8 @@ int main(void)
         
         glfwPollEvents();
         if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
-        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) campos[2] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) campos[2] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) campos[2] += 1 * delta;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) campos[2] -= 1 * delta;
         if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) campos[0] -= 1 * delta;
         if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) campos[0] += 1 * delta;
         if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) campos[1] -= 1 * delta;
@@ -215,7 +215,7 @@ int main(void)
         // ===========================================
 
         {
-            vec5f front = {0, 0, -1, 0, 1}, right = {1, 0, 0, 0, 1}, up = {0, 1, 0, 0, 1}, over = {0, 0, 0, 1, 1};
+            vec5f front = {0, 0, -1, 0, 0}, right = {1, 0, 0, 0, 0}, up = {0, 1, 0, 0, 0}, over = {0, 0, 0, 1, 0};
             mat5f tmp;
             gentransform(tmp, campos, camrot, NULL);
             mat5f_mulv2(front, tmp);
