@@ -26,8 +26,12 @@ static void onresize(GLFWwindow *window, int width, int height)
 
 static bool isshadercompilationsuccessful(GLuint shader);
 static void gentransform(mat5f out, const vec4f pos, const float euler[6], const vec4f scale);
+static void genrotmat(mat5f out, const float euler[6]);
 
+#define PI 3.14159265358979323846
 #define PI4 0.78539816339744830962
+
+#define RAD(deg) ((deg) / (float)180 * PI)
 
 int main(void)
 {
@@ -153,13 +157,10 @@ int main(void)
 
     GLint u_model = glGetUniformLocation(prog, "model");
     printf("%i\n", u_model);
-
-    mat5f model;
     vec4f pos = {1, 2, 0, 0}, scale = {1, 1, 1, 1};
     float rot[6] = {0};
 
     GLint u_perp = glGetUniformLocation(prog, "perp");
-    mat4f perp;
     printf("%i\n", u_perp);
 
     GLint u_view = glGetUniformLocation(prog, "view");
@@ -169,11 +170,15 @@ int main(void)
     
     // ===========================================
 
+    glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
     glDisable(GL_CULL_FACE);
-    //glCullFace(GL_BACK);
 
     glClearColor(0, 0, 0, 1);
     double lasttime = glfwGetTime();
+    vec4f vec4;
+    mat5f mat5;
+    mat4f mat4;
     while (!glfwWindowShouldClose(w))
     {
         double currtime = glfwGetTime();
@@ -182,54 +187,79 @@ int main(void)
 
         // ===========================================
         
-        glfwPollEvents();
-        if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
-        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) campos[2] += 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) campos[2] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) campos[0] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) campos[0] += 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) campos[1] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) campos[1] += 1 * delta;
-        
-        if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) campos[3] -= 1 * delta;
-        if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) campos[3] += 1 * delta;
-
-        char sign = glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? -1 : 1;
-        if (glfwGetKey(w, GLFW_KEY_R) == GLFW_PRESS) rot[0] += sign * delta;
-        if (glfwGetKey(w, GLFW_KEY_T) == GLFW_PRESS) rot[1] += sign * delta;
-        if (glfwGetKey(w, GLFW_KEY_Y) == GLFW_PRESS) rot[2] += sign * delta;
-        if (glfwGetKey(w, GLFW_KEY_F) == GLFW_PRESS) rot[3] += sign * delta;
-        if (glfwGetKey(w, GLFW_KEY_G) == GLFW_PRESS) rot[4] += sign * delta;
-        if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) rot[5] += sign * delta;
-
-        // ===========================================
-        
-        mat4f_perspective(perp, PI4, (float)winwidth / winheight, 0.1, 1000);
-        glUniformMatrix4fv(u_perp, 1, GL_FALSE, perp);
-
-        // ===========================================
-        
-        gentransform(model, pos, rot, scale);
-        glUniform1fv(u_model, 25, model);
-
-        // ===========================================
-
         {
-            vec5f front = {0, 0, -1, 0, 0}, right = {1, 0, 0, 0, 0}, up = {0, 1, 0, 0, 0}, over = {0, 0, 0, 1, 0};
-            mat5f tmp;
-            gentransform(tmp, campos, camrot, NULL);
-            mat5f_mulv2(front, tmp);
-            mat5f_mulv2(right, tmp);
-            mat5f_mulv2(up, tmp);
-            mat5f_mulv2(over, tmp);
+            static double lastx = 0, lasty = 0;
+            double x, y;
+            glfwGetCursorPos(w, &x, &y);
+            double deltax = x - lastx;
+            double deltay = y - lasty;
+            lastx = x;
+            lasty = y;
+
+            camrot[0] -= deltax * 0.005;
+            camrot[1] += deltay * 0.005;
+
+            camrot[0] = fmodf(camrot[0], 2 * PI);
+            camrot[1] = fmodf(camrot[1], 2 * PI);
+            
+            /*
+            //if (camrot[0] < RAD(-79)) camrot[0] = RAD(-79);
+            //else if (camrot[0] > RAD(79)) camrot[0] = RAD(79);
+
+            if (camrot[1] < RAD(-79)) camrot[1] = RAD(-79);
+            else if (camrot[1] > RAD(79)) camrot[1] = RAD(79);
+            */
+        }
+        
+        vec5f front = {0, 0, -1, 0, 0}, right = {1, 0, 0, 0, 0}, up = {0, 1, 0, 0, 0}, over = {0, 0, 0, 1, 0};
+        {
+            genrotmat(mat5, camrot);
+
+            mat5f_mulv2(front, mat5);
+            mat5f_mulv2(right, mat5);
+            mat5f_mulv2(up, mat5);
+            mat5f_mulv2(over, mat5);
+
             vec4f_norm2(front);
             vec4f_norm2(right);
             vec4f_norm2(up);
             vec4f_norm2(over);
-            
-            mat5f_lookat(tmp, campos, front, right, up, over);
-            glUniform1fv(u_view, 25, tmp);
         }
+
+        glfwPollEvents();
+        if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(w, true);
+        
+        float speedmul = glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 3 : 1;
+        {
+            if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec4f_muls(vec4, front, speedmul * delta); vec4f_sub2(campos, vec4); }
+            if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec4f_muls(vec4, front, speedmul * delta); vec4f_add2(campos, vec4); }
+            if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec4f_muls(vec4, right, speedmul * delta); vec4f_sub2(campos, vec4); }
+            if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec4f_muls(vec4, right, speedmul * delta); vec4f_add2(campos, vec4); }
+            if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) campos[1] -= speedmul * delta;
+            if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) campos[1] += speedmul * delta;
+            
+            if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) campos[3] -= speedmul * delta;
+            if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) campos[3] += speedmul * delta;
+        }
+
+        char sign = glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ? -1 : 1;
+        if (glfwGetKey(w, GLFW_KEY_R) == GLFW_PRESS) rot[0] += sign * delta * speedmul;
+        if (glfwGetKey(w, GLFW_KEY_T) == GLFW_PRESS) rot[1] += sign * delta * speedmul;
+        if (glfwGetKey(w, GLFW_KEY_Y) == GLFW_PRESS) rot[2] += sign * delta * speedmul;
+        if (glfwGetKey(w, GLFW_KEY_F) == GLFW_PRESS) rot[3] += sign * delta * speedmul;
+        if (glfwGetKey(w, GLFW_KEY_G) == GLFW_PRESS) rot[4] += sign * delta * speedmul;
+        if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) rot[5] += sign * delta * speedmul;
+
+        // ===========================================
+        
+        gentransform(mat5, pos, rot, scale);
+        glUniform1fv(u_model, 25, mat5);
+
+        mat5f_lookat(mat5, campos, front, right, up, over);
+        glUniform1fv(u_view, 25, mat5);
+        
+        mat4f_perspective(mat4, PI4, (float)winwidth / winheight, 0.1, 1000);
+        glUniformMatrix4fv(u_perp, 1, GL_FALSE, mat4);
 
         // ===========================================
 
@@ -270,9 +300,23 @@ static void gentransform(mat5f out, const vec4f pos, const float euler[6], const
     mat5f_rotatezw(tmp, euler[5]);
     mat5f_mulm2(out, tmp);
 
-    if (scale)
-    {
-        mat5f_scale(tmp, scale);
-        mat5f_mulm2(out, tmp);
-    }
+    mat5f_scale(tmp, scale);
+    mat5f_mulm2(out, tmp);
+}
+
+static void genrotmat(mat5f out, const float euler[6])
+{
+    mat5f tmp;
+    mat5f_rotatexy(out, euler[0]);
+    mat5f_rotateyz(tmp, euler[1]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotatezx(tmp, euler[2]);
+    mat5f_mulm2(out, tmp);
+
+    mat5f_rotatexw(tmp, euler[3]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotateyw(tmp, euler[4]);
+    mat5f_mulm2(out, tmp);
+    mat5f_rotatezw(tmp, euler[5]);
+    mat5f_mulm2(out, tmp);
 }
