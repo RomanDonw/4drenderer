@@ -51,22 +51,24 @@ int main(void)
     GLuint prog = glCreateProgram();
     {
         FILE *f = fopen("res/vertex.glsl", "rb");
-        if (!f) { puts("failed to open res/vertex.glsl file"); goto errorquit_afterinitglfw; }
+        char *buff = NULL;
+        if (!f) { puts("failed to open res/vertex.glsl file"); goto errorquit; }
 
         fseek(f, 0, SEEK_END);
         int size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        char *buff = malloc(size + 1);
-        if (!buff) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
+        if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); goto errorquit; }
         if (fread(buff, size, 1, f) < 1) { puts("error reading vertex shader source"); return 1; }
         fclose(f);
+        f = NULL;
         buff[size] = '\0';
 
         GLuint vs = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vs, 1, (void *)&buff, NULL);
         glCompileShader(vs);
         free(buff);
+        buff = NULL;
         if (!isshadercompilationsuccessful(vs))
         {
             int len;
@@ -74,33 +76,36 @@ int main(void)
             
             if (len > 0)
             {
-                char *buff = malloc(len);
-                if (!buff) { puts("memory allocation failed"); return 1; }
-                glGetShaderInfoLog(vs, len, NULL, buff);
-                printf("#### VERTEX SHADER ####\n%s", buff);
+                char *log = malloc(len);
+                if (!log) { puts("memory allocation failed"); return 1; }
+                glGetShaderInfoLog(vs, len, NULL, log);
+                printf("#### VERTEX SHADER ####\n%s", log);
+                free(log);
             }
-            goto errorquit_afterinitglfw;
+            goto errorquit;
         }
         glAttachShader(prog, vs);
 
         // ===========================================
         
-        if (!(f = fopen("res/fragment.glsl", "rb"))) { puts("failed to open res/fragment.glsl file"); goto errorquit_afterinitglfw; }
+        if (!(f = fopen("res/fragment.glsl", "rb"))) { puts("failed to open res/fragment.glsl file"); goto errorquit; }
 
         fseek(f, 0, SEEK_END);
         size = ftell(f);
         fseek(f, 0, SEEK_SET);
         
-        if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); fclose(f); goto errorquit_afterinitglfw; }
+        if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); fclose(f); goto errorquit; }
         if (fread(buff, size, 1, f) < 1) { puts("error reading fragment shader source"); return 1; }
         fclose(f);
+        f = NULL;
         buff[size] = '\0';
 
         GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(fs, 1, (void *)&buff, NULL);
         glCompileShader(fs);
         free(buff);
-        if (!isshadercompilationsuccessful(fs)) goto errorquit_afterinitglfw;
+        buff = NULL;
+        if (!isshadercompilationsuccessful(fs)) goto errorquit;
         glAttachShader(prog, fs);
 
         // ===========================================
@@ -108,9 +113,18 @@ int main(void)
         glLinkProgram(prog);
         GLint result;
         glGetProgramiv(prog, GL_LINK_STATUS, &result);
-        if (!result) goto errorquit_afterinitglfw;
+        if (!result) goto errorquit;
 
         glUseProgram(prog);
+
+        // ===========================================
+
+        goto success;
+        errorquit:
+            fclose(f);
+            free(buff);
+        goto errorquit_afterinitglfw;
+        success:
     }
 
     GLuint VAO, VBO, EBO;
@@ -156,15 +170,12 @@ int main(void)
     // ===========================================
 
     GLint u_model = glGetUniformLocation(prog, "model");
-    printf("%i\n", u_model);
     vec4f pos = {1, 2, 0, 0}, scale = {1, 1, 1, 1};
     float rot[6] = {0};
 
     GLint u_perp = glGetUniformLocation(prog, "perp");
-    printf("%i\n", u_perp);
 
     GLint u_view = glGetUniformLocation(prog, "view");
-    printf("%i\n", u_view);
     vec4f campos = {0};
     float camrot[6] = {0};
     
@@ -186,6 +197,10 @@ int main(void)
         lasttime = currtime;
 
         // ===========================================
+
+        glfwPollEvents();
+
+        if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(w, true);
         
         {
             static double lastx = 0, lasty = 0;
@@ -201,33 +216,20 @@ int main(void)
 
             camrot[0] = fmodf(camrot[0], 2 * PI);
             camrot[1] = fmodf(camrot[1], 2 * PI);
-            
-            /*
-            //if (camrot[0] < RAD(-79)) camrot[0] = RAD(-79);
-            //else if (camrot[0] > RAD(79)) camrot[0] = RAD(79);
-
-            if (camrot[1] < RAD(-79)) camrot[1] = RAD(-79);
-            else if (camrot[1] > RAD(79)) camrot[1] = RAD(79);
-            */
         }
         
         vec5f front = {0, 0, -1, 0, 0}, right = {1, 0, 0, 0, 0}, up = {0, 1, 0, 0, 0}, over = {0, 0, 0, 1, 0};
-        {
-            genrotmat(mat5, camrot);
+        genrotmat(mat5, camrot);
 
-            mat5f_mulv2(front, mat5);
-            mat5f_mulv2(right, mat5);
-            mat5f_mulv2(up, mat5);
-            mat5f_mulv2(over, mat5);
+        mat5f_mulv2(front, mat5);
+        mat5f_mulv2(right, mat5);
+        mat5f_mulv2(up, mat5);
+        mat5f_mulv2(over, mat5);
 
-            vec4f_norm2(front);
-            vec4f_norm2(right);
-            vec4f_norm2(up);
-            vec4f_norm2(over);
-        }
-
-        glfwPollEvents();
-        if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(w, true);
+        vec4f_norm2(front);
+        vec4f_norm2(right);
+        vec4f_norm2(up);
+        vec4f_norm2(over);
         
         float speedmul = glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 3 : 1;
         {
@@ -235,8 +237,8 @@ int main(void)
             if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec4f_muls(vec4, front, speedmul * delta); vec4f_add2(campos, vec4); }
             if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec4f_muls(vec4, right, speedmul * delta); vec4f_sub2(campos, vec4); }
             if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec4f_muls(vec4, right, speedmul * delta); vec4f_add2(campos, vec4); }
-            if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) campos[1] -= speedmul * delta;
-            if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) campos[1] += speedmul * delta;
+            if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) { vec4f_muls(vec4, up, speedmul * delta); vec4f_sub2(campos, vec4); }
+            if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) { vec4f_muls(vec4, up, speedmul * delta); vec4f_add2(campos, vec4); }
             
             if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) campos[3] -= speedmul * delta;
             if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) campos[3] += speedmul * delta;
@@ -264,7 +266,7 @@ int main(void)
         // ===========================================
 
         glClear(GL_COLOR_BUFFER_BIT);
-        glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_INT, NULL);
+        glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, NULL);
         glfwSwapBuffers(w);
     }
 
