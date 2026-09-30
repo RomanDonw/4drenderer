@@ -15,23 +15,29 @@
 #include "mat5.h"
 
 #define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
+#define PI 3.14159265358979323846
+#define RAD(deg) ((deg) / (float)180 * PI)
 
-unsigned int winwidth, winheight;
+static unsigned int winwidth, winheight;
+static GLint u_perp = -1;
 static void onresize(GLFWwindow *window, int width, int height)
 {
     winwidth = width > 0 ? width : 1;
     winheight = height > 0 ? height : 1;
     glViewport(0, 0, winwidth, winheight);
+
+    if (~u_perp)
+    {
+        mat4f mat4;
+        mat4f_perspective(mat4, RAD(90) / (float)2, (float)winwidth / winheight, 0.1, 1000);
+        glUniformMatrix4fv(u_perp, 1, GL_FALSE, mat4);
+    }
 }
 
 static bool isshadercompilationsuccessful(GLuint shader);
 static void gentransform(mat5f out, const vec4f pos, const float euler[6], const vec4f scale);
 static void genrotmat(mat5f out, const float euler[6]);
-
-#define PI 3.14159265358979323846
-#define PI4 0.78539816339744830962
-
-#define RAD(deg) ((deg) / (float)180 * PI)
+static char getshadercomplog(GLuint shader, char **log);
 
 int main(void)
 {
@@ -59,29 +65,20 @@ int main(void)
         fseek(f, 0, SEEK_SET);
 
         if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); goto errorquit; }
-        if (fread(buff, size, 1, f) < 1) { puts("error reading vertex shader source"); return 1; }
-        fclose(f);
-        f = NULL;
+        if (fread(buff, size, 1, f) < 1) { puts("error reading vertex shader source"); goto errorquit; }
+        fclose(f); f = NULL;
         buff[size] = '\0';
 
         GLuint vs = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vs, 1, (void *)&buff, NULL);
         glCompileShader(vs);
-        free(buff);
-        buff = NULL;
+        free(buff); buff = NULL;
         if (!isshadercompilationsuccessful(vs))
         {
-            int len;
-            glGetShaderiv(vs, GL_INFO_LOG_LENGTH, &len);
-            
-            if (len > 0)
-            {
-                char *log = malloc(len);
-                if (!log) { puts("memory allocation failed"); return 1; }
-                glGetShaderInfoLog(vs, len, NULL, log);
-                printf("#### VERTEX SHADER ####\n%s", log);
-                free(log);
-            }
+            char *log;
+            if (getshadercomplog(vs, &log)) { puts("failed getting vertex shader compilation log"); goto errorquit; }
+            printf("#### VERTEX SHADER COMPILING LOG ####\n%s", log);
+            free(log);
             goto errorquit;
         }
         glAttachShader(prog, vs);
@@ -95,7 +92,7 @@ int main(void)
         fseek(f, 0, SEEK_SET);
         
         if (!(buff = malloc(size + 1))) { puts("memory allocation failed"); fclose(f); goto errorquit; }
-        if (fread(buff, size, 1, f) < 1) { puts("error reading fragment shader source"); return 1; }
+        if (fread(buff, size, 1, f) < 1) { puts("error reading fragment shader source"); goto errorquit; }
         fclose(f);
         f = NULL;
         buff[size] = '\0';
@@ -105,7 +102,14 @@ int main(void)
         glCompileShader(fs);
         free(buff);
         buff = NULL;
-        if (!isshadercompilationsuccessful(fs)) goto errorquit;
+        if (!isshadercompilationsuccessful(fs))
+        {
+            char *log;
+            if (getshadercomplog(fs, &log)) { puts("failed getting fragment shader compilation log"); goto errorquit; }
+            printf("#### FRAGMENT SHADER COMPILING LOG ####\n%s", log);
+            free(log);
+            goto errorquit;
+        }
         glAttachShader(prog, fs);
 
         // ===========================================
@@ -113,18 +117,18 @@ int main(void)
         glLinkProgram(prog);
         GLint result;
         glGetProgramiv(prog, GL_LINK_STATUS, &result);
-        if (!result) goto errorquit;
+        if (!result) { puts("failed linking shader program"); goto errorquit; }
 
         glUseProgram(prog);
 
         // ===========================================
 
-        goto success;
+        goto successquit;
         errorquit:
-            fclose(f);
+            if (f) fclose(f);
             free(buff);
         goto errorquit_afterinitglfw;
-        success:
+        successquit:
     }
 
     GLuint VAO, VBO, EBO;
@@ -169,13 +173,13 @@ int main(void)
 
     // ===========================================
 
-    GLint u_model = glGetUniformLocation(prog, "model");
-    vec4f pos = {1, 2, 0, 0}, scale = {1, 1, 1, 1};
-    float rot[6] = {0};
-
-    GLint u_perp = glGetUniformLocation(prog, "perp");
-
+    u_perp = glGetUniformLocation(prog, "perp");
     GLint u_view = glGetUniformLocation(prog, "view");
+    GLint u_model = glGetUniformLocation(prog, "model");
+
+    vec4f modelpos = {1, 2, 0, 0}, modelscale = {1, 1, 1, 1};
+    float modelrot[6] = {0};
+    
     vec4f campos = {0};
     float camrot[6] = {0};
     
@@ -239,29 +243,25 @@ int main(void)
             if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec4f_muls(vec4, right, speedmul * delta); vec4f_add2(campos, vec4); }
             if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) { vec4f_muls(vec4, up, speedmul * delta); vec4f_sub2(campos, vec4); }
             if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) { vec4f_muls(vec4, up, speedmul * delta); vec4f_add2(campos, vec4); }
-            
             if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) campos[3] -= speedmul * delta;
             if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) campos[3] += speedmul * delta;
         }
 
         char sign = glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ? -1 : 1;
-        if (glfwGetKey(w, GLFW_KEY_R) == GLFW_PRESS) rot[0] += sign * delta * speedmul;
-        if (glfwGetKey(w, GLFW_KEY_T) == GLFW_PRESS) rot[1] += sign * delta * speedmul;
-        if (glfwGetKey(w, GLFW_KEY_Y) == GLFW_PRESS) rot[2] += sign * delta * speedmul;
-        if (glfwGetKey(w, GLFW_KEY_F) == GLFW_PRESS) rot[3] += sign * delta * speedmul;
-        if (glfwGetKey(w, GLFW_KEY_G) == GLFW_PRESS) rot[4] += sign * delta * speedmul;
-        if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) rot[5] += sign * delta * speedmul;
+        if (glfwGetKey(w, GLFW_KEY_R) == GLFW_PRESS) modelrot[0] = fmodf(sign * delta * speedmul + modelrot[0], RAD(360));
+        if (glfwGetKey(w, GLFW_KEY_T) == GLFW_PRESS) modelrot[1] = fmodf(sign * delta * speedmul + modelrot[1], RAD(360));
+        if (glfwGetKey(w, GLFW_KEY_Y) == GLFW_PRESS) modelrot[2] = fmodf(sign * delta * speedmul + modelrot[2], RAD(360));
+        if (glfwGetKey(w, GLFW_KEY_F) == GLFW_PRESS) modelrot[3] = fmodf(sign * delta * speedmul + modelrot[3], RAD(360));
+        if (glfwGetKey(w, GLFW_KEY_G) == GLFW_PRESS) modelrot[4] = fmodf(sign * delta * speedmul + modelrot[4], RAD(360));
+        if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) modelrot[5] = fmodf(sign * delta * speedmul + modelrot[5], RAD(360));
 
         // ===========================================
         
-        gentransform(mat5, pos, rot, scale);
+        gentransform(mat5, modelpos, modelrot, modelscale);
         glUniform1fv(u_model, 25, mat5);
 
         mat5f_lookat(mat5, campos, front, right, up, over);
         glUniform1fv(u_view, 25, mat5);
-        
-        mat4f_perspective(mat4, PI4, (float)winwidth / winheight, 0.1, 1000);
-        glUniformMatrix4fv(u_perp, 1, GL_FALSE, mat4);
 
         // ===========================================
 
@@ -269,6 +269,8 @@ int main(void)
         glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, NULL);
         glfwSwapBuffers(w);
     }
+
+    glfwTerminate();
 
     return 0;
     errorquit_afterinitglfw:
@@ -321,4 +323,21 @@ static void genrotmat(mat5f out, const float euler[6])
     mat5f_mulm2(out, tmp);
     mat5f_rotatezw(tmp, euler[5]);
     mat5f_mulm2(out, tmp);
+}
+
+static char getshadercomplog(GLuint shader, char **log)
+{
+    int len;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
+    
+    if (len > 0)
+    {
+        char *buff = malloc(len);
+        if (!buff) return 1;
+        glGetShaderInfoLog(shader, len, NULL, buff);
+        *log = buff;
+    }
+    else *log = NULL;
+
+    return 0;
 }
