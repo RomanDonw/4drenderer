@@ -29,7 +29,7 @@ static void onresize(GLFWwindow *window, int width, int height)
     if (~u_perp)
     {
         mat4f mat4;
-        mat4f_perspective(mat4, RAD(90) / (float)2, (float)winwidth / winheight, 0.1, 1000);
+        mat4f_perspectiveGL(mat4, RAD(90) / (float)2, (float)winwidth / winheight, 0.1, 1000);
         glUniformMatrix4fv(u_perp, 1, GL_FALSE, mat4);
     }
 }

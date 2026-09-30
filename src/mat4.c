@@ -17,7 +17,7 @@ void mat4f_idt(mat4f out)
     out[0] = out[5] = out[10] = out[15] = 1;
 }
 
-void mat4f_perspective(mat4f out, float halfFOVy, float aspectratio, float near, float far)
+void mat4f_perspectiveGL(mat4f out, float halfFOVy, float aspectratio, float near, float far)
 {
     mat4f_zero(out);
     
